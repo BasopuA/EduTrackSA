@@ -4,7 +4,7 @@ from sqlalchemy import select
 
 from app.database.connection import get_db
 from app.schemas.users import UserResponse, UserRole, UserUpdate, ApprovalStatus
-from app.models.users import User, ApprovalStatus as ModelApprovalStatus
+from app.models.users import User
 from app.core.security import decode_token
 from app.services.users import UserService
 
@@ -46,7 +46,7 @@ async def get_current_user(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
     if not user.is_active:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Account disabled")
-    if user.approval_status != ModelApprovalStatus.APPROVED:
+    if user.approval_status != "approved":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Account pending approval"

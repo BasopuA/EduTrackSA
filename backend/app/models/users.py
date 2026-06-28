@@ -26,7 +26,7 @@ class User(Base):
     role = Column(SAEnum(UserRole), default=UserRole.USER, nullable=False)
     consent_accepted = Column(Boolean, default=False, nullable=False)
     consent_accepted_at = Column(DateTime(timezone=True), nullable=True)
-    approval_status = Column(SAEnum(ApprovalStatus), default=ApprovalStatus.PENDING, nullable=False)
+    approval_status = Column(String(20), default=ApprovalStatus.PENDING.value, nullable=False)
     approved_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())

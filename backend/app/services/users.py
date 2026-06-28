@@ -2,9 +2,9 @@ from datetime import datetime, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
  
-from app.models.users import User, UserRole, ApprovalStatus
+from app.models.users import User, UserRole
 from app.core.security import get_password_hash
-from app.schemas.users import UserCreate, UserUpdate
+from app.schemas.users import UserCreate, UserUpdate, ApprovalStatus
 
 
 class UserService:
@@ -35,7 +35,7 @@ class UserService:
 
     async def get_pending_users(self):
         result = await self.db.execute(
-            select(User).where(User.approval_status == ApprovalStatus.PENDING)
+            select(User).where(User.approval_status == "pending")
         )
         return result.scalars().all()
 
@@ -50,7 +50,7 @@ class UserService:
             role=user_in.role or UserRole.USER,
             consent_accepted=user_in.consent_accepted,
             consent_accepted_at=consent_accepted_at,
-            approval_status=ApprovalStatus.PENDING,
+            approval_status="pending",
         )
         self.db.add(user)
         await self.db.commit()
@@ -77,7 +77,7 @@ class UserService:
             if user_in.consent_accepted:
                 user.consent_accepted_at = datetime.now(timezone.utc)
         if user_in.approval_status is not None:
-            user.approval_status = user_in.approval_status
+            user.approval_status = user_in.approval_status.value
             if user_in.approval_status == ApprovalStatus.APPROVED:
                 user.approved_at = datetime.now(timezone.utc)
             else:
