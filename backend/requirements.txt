@@ -17,5 +17,6 @@ httpx>=0.26.0
 python-multipart==0.0.6
 openai==1.10.0
 PyPDF2==3.0.1
+python-docx>=1.1.0
 python-dotenv
-httpx>=0.25.0   
+httpx>=0.25.0

@@ -19,16 +19,21 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  
-  const { login, isAuthenticated } = useAuth();
   const router = useRouter();
 
-  // Redirect if already authenticated
+  const { login, isAuthenticated, user } = useAuth();
+
   React.useEffect(() => {
-    if (isAuthenticated) {
-      router.push("/learner-dashboard");
+    if (isAuthenticated && user) {
+     if (user.role === "admin") {
+       router.push("/adminDashboard");
+     } else if (user.role === "teacher") {
+       router.push("/teacherDashboard");
+     } else {
+       router.push("/learner-dashboard");
+     }
     }
-  }, [isAuthenticated, router]);
+  }, [isAuthenticated, user, router]);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -38,8 +43,13 @@ export default function LoginPage() {
     try {
       await login(username, password);
       // Redirect handled in auth context
-    } catch (err: any) {
-      setError(err.message || "Invalid username or password");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Invalid username or password";
+      if (message.includes("pending approval")) {
+        setError("Your account is pending approval. Please wait for an administrator to verify your registration.");
+      } else {
+        setError(message);
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -97,16 +107,25 @@ export default function LoginPage() {
               disabled={isSubmitting}
             />
             
-            <Button
-              type="submit"
-              fullWidth
-              variant="contained"
-              size="large"
-              disabled={isSubmitting || !username || !password}
-              sx={{ mt: 3, mb: 2 }}
-            >
-              {isSubmitting ? <CircularProgress size={24} /> : "Sign In"}
-            </Button>
+           <Button
+             type="submit"
+             fullWidth
+             variant="contained"
+             size="large"
+             disabled={isSubmitting || !username || !password}
+             sx={{ mt: 3, mb: 2 }}
+           >
+             {isSubmitting ? <CircularProgress size={24} /> : "Sign In"}
+           </Button>
+
+           <Button
+             fullWidth
+             variant="text"
+             onClick={() => router.push("/register")}
+             sx={{ mt: 1 }}
+           >
+             Create an EduTrackSA account
+           </Button>
           </Box>
         </Paper>
       </Box>

@@ -68,6 +68,7 @@ class QuizAttempt(Base):
     started_at = Column(DateTime(timezone=True), server_default=func.now())
     completed_at = Column(DateTime(timezone=True), nullable=True)
     is_completed = Column(Boolean, default=False)
+    saved_answers = Column(JSON, default=dict, nullable=True)
 
     user = relationship("User", backref="quiz_attempts")
     answers = relationship("Answer", backref="attempt", cascade="all, delete-orphan")

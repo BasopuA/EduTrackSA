@@ -4,11 +4,11 @@ from datetime import timedelta
 
 from app.services.users import UserService
 from app.database.connection import get_db
-from app.schemas.users import UserCreate, UserLogin, Token, UserResponse
+from app.schemas.users import UserCreate, UserLogin, Token, UserResponse, ApprovalStatus
 
 from app.core.security import (
-    create_access_token, 
-    create_refresh_token, 
+    create_access_token,
+    create_refresh_token,
     verify_password,
     get_password_hash
 )
@@ -30,7 +30,21 @@ async def register(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Username already registered"
         )
-    
+ 
+    if user_in.email:
+        existing_email = await service.get_user_by_email(user_in.email)
+        if existing_email:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Email already registered"
+            )
+ 
+    if not user_in.consent_accepted:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Learner consent must be accepted before registration"
+        )
+ 
     user = await service.create_user(user_in)  # Service handles hashing
     return UserResponse.model_validate(user)
 
@@ -42,10 +56,6 @@ async def login(
 ):
     """Authenticate user and return JWT tokens."""
     service = UserService(db)
-    
-    # Debug: Print login attempt
-    print(f"🔐 Login attempt: username='{credentials.username}'")
-    
     # Find user by username
     user = await service.get_user_by_username(credentials.username)
     if not user:
@@ -55,20 +65,11 @@ async def login(
             headers={"WWW-Authenticate": "Bearer"},
         )
     
-    # Debug: Check if password is plain text
-    if user.password_hash and not user.password_hash.startswith('$2'):
-        # Fix the password on the fly
-        hashed = get_password_hash(user.password_hash)
-        user.password_hash = hashed
-        await db.commit()
-    
     # Verify password
     is_valid = verify_password(credentials.password, user.password_hash)
    
     
     if not is_valid:
-        # Helpful debug: Show what the hash should be for the provided password
-        expected_hash = get_password_hash(credentials.password)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid credentials",
@@ -82,6 +83,13 @@ async def login(
             detail="Account disabled"
         )
     
+    # Check if user is approved
+    if user.approval_status != ApprovalStatus.APPROVED:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Account pending approval. Please wait for an administrator to approve your registration."
+        )
+    
     # Create tokens
     token_data = {"sub": str(user.id)}
     access_token = create_access_token(data=token_data)
@@ -90,7 +98,8 @@ async def login(
     return Token(
         access_token=access_token,
         refresh_token=refresh_token,
-        expires_in=900  # 15 minutes in seconds
+        expires_in=900,
+        user=UserResponse.model_validate(user)
     )
 
 
@@ -129,3 +138,9 @@ async def refresh_token(
         refresh_token=new_refresh,
         expires_in=900
     )
+
+
+@router.post("/logout")
+async def logout():
+    """Client-side logout marker for API consistency."""
+    return {"message": "Logged out successfully"}
