@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form, Header
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -9,7 +9,7 @@ import uuid
 from app.database.connection import get_db
 from app.schemas.content import ContentCreate, ContentResponse, ContentUpdate, ContentUploadResponse
 from app.models.content import Content, ContentType
-from app.models.users import User
+from app.models.users import User, UserRole
 from app.core.security import decode_token
 from app.services.pdf_extractor import PDFExtractor
 
@@ -67,24 +67,41 @@ async def upload_content(
     content_type = ContentType.TEXT
     
     # Handle file upload
-    if file:
-        if not file.filename.lower().endswith('.pdf'):
+    if file and file.filename:
+        # Check file size - read content if size not provided by FastAPI
+        file_content = await file.read()
+        if len(file_content) > 10 * 1024 * 1024:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Only PDF files are supported"
+                detail="File size must be 10MB or less"
             )
-        
+
+        if not file.filename.lower().endswith(('.pdf', '.txt', '.docx')):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Only PDF, TXT, and DOCX files are supported"
+            )
+
         file_extension = file.filename.split(".")[-1]
         unique_filename = f"{uuid.uuid4()}.{file_extension}"
         file_path = os.path.join(UPLOAD_DIR, unique_filename)
         
         try:
             with open(file_path, "wb") as buffer:
-                content = await file.read()
-                buffer.write(content)
-            
-            extracted_text = PDFExtractor.extract_text_from_pdf(file_path)
-            content_type = ContentType.PDF
+                buffer.write(file_content)
+
+            extension = file_extension.lower()
+            if extension == "pdf":
+                extracted_text = PDFExtractor.extract_text_from_pdf(file_path)
+                content_type = ContentType.PDF
+            elif extension == "txt":
+                extracted_text = open(file_path, "r", encoding="utf-8").read()
+                content_type = ContentType.TEXT
+            elif extension == "docx":
+                from docx import Document
+                document = Document(file_path)
+                extracted_text = "\n".join(paragraph.text for paragraph in document.paragraphs if paragraph.text.strip())
+                content_type = ContentType.DOCUMENT
             
         except Exception as e:
             if os.path.exists(file_path):
@@ -152,15 +169,39 @@ async def get_content(
     current_user: User = Depends(get_current_user),  # Use Dependency
     db: AsyncSession = Depends(get_db)
 ):
-    """Get specific content by ID"""
-    
-    result = await db.execute(select(Content).where(Content.id == content_id))
-    content = result.scalar_one_or_none()
-    
-    if not content:
-        raise HTTPException(status_code=404, detail="Content not found")
-    
-    return content
+   """Get specific content by ID"""
+   
+   result = await db.execute(select(Content).where(Content.id == content_id))
+   content = result.scalar_one_or_none()
+   
+   if not content:
+       raise HTTPException(status_code=404, detail="Content not found")
+   
+   return content
+
+
+@router.get("/offline-pack", response_model=List[dict])
+async def get_offline_pack(
+   authorization: str = Header(...),
+   db: AsyncSession = Depends(get_db)
+):
+   """Compact offline-first content pack for learners and sync queues."""
+   query = select(Content).where(Content.is_active == True).order_by(Content.created_at.desc()).limit(50)
+   result = await db.execute(query)
+   contents = result.scalars().all()
+
+   return [
+       {
+           "id": content.id,
+           "title": content.title,
+           "subject": content.subject,
+           "grade_level": content.grade_level,
+           "content_type": content.content_type.value,
+           "text_content": content.text_content or "",
+           "updated_at": content.updated_at or content.created_at,
+       }
+       for content in contents
+   ]
 
 
 @router.put("/{content_id}", response_model=ContentResponse)
@@ -178,7 +219,7 @@ async def update_content(
     if not content:
         raise HTTPException(status_code=404, detail="Content not found")
     
-    if content.uploaded_by != current_user.id and not current_user.is_admin:
+    if content.uploaded_by != current_user.id and current_user.role != UserRole.ADMIN:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not authorized to update this content"
@@ -208,7 +249,7 @@ async def delete_content(
     if not content:
         raise HTTPException(status_code=404, detail="Content not found")
     
-    if content.uploaded_by != current_user.id and not current_user.is_admin:
+    if content.uploaded_by != current_user.id and current_user.role != UserRole.ADMIN:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not authorized to delete this content"

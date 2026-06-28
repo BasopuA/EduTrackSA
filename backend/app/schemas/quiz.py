@@ -19,6 +19,10 @@ class QuestionCreate(QuestionBase):
     pass
 
 
+class QuestionUpdate(QuestionBase):
+    id: Optional[int] = None
+
+
 class QuestionResponse(QuestionBase):
     id: int
     quiz_id: int
@@ -55,6 +59,7 @@ class QuizUpdate(BaseModel):
     description: Optional[str] = None
     duration_minutes: Optional[int] = None
     is_active: Optional[bool] = None
+    questions: Optional[List[QuestionUpdate]] = None
 
 
 class QuizResponse(QuizBase):
@@ -100,6 +105,17 @@ class QuizAttemptStart(BaseModel):
     quiz_id: int
 
 
+class QuizAttemptAutosave(BaseModel):
+    attempt_id: int
+    answers: List[AnswerSubmit]
+
+
+class QuizAttemptAutosaveResponse(BaseModel):
+    attempt_id: int
+    saved_answers: int
+    updated_at: datetime
+
+
 class QuizAttemptResponse(BaseModel):
     id: int
     quiz_id: int
@@ -131,3 +147,43 @@ class QuizResultResponse(BaseModel):
     answers: List[dict] = []
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class LearnerProgressResponse(BaseModel):
+    user_id: int
+    points: int
+    streak_days: int
+    quizzes_completed: int
+    average_score: float
+    last_quiz_date: Optional[datetime]
+
+
+class LeaderboardItem(BaseModel):
+    user_id: int
+    username: str
+    full_name: Optional[str]
+    points: int
+    streak_days: int
+    quizzes_completed: int
+    average_score: float
+
+
+class TeacherDashboardResponse(BaseModel):
+    total_students: int
+    active_students: int
+    average_score: float
+    completion_rate: float
+    at_risk_students: int
+    recent_submissions: List[dict]
+    at_risk_learners: List[dict]
+
+
+class SchoolAnalyticsResponse(BaseModel):
+    total_students: int
+    active_students: int
+    total_teachers: int
+    total_quizzes: int
+    average_score: float
+    completion_rate: float
+    engagement_trend: List[dict]
+    performance_by_subject: List[dict]

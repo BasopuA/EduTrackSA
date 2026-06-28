@@ -3,9 +3,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from app.database.connection import get_db
-from app.schemas.users import UserResponse, UserRole
-from app.models.users import User 
+from app.schemas.users import UserResponse, UserRole, UserUpdate, ApprovalStatus
+from app.models.users import User, ApprovalStatus as ModelApprovalStatus
 from app.core.security import decode_token
+from app.services.users import UserService
 
 router = APIRouter(prefix="/users", tags=["Users"])
 
@@ -45,6 +46,11 @@ async def get_current_user(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
     if not user.is_active:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Account disabled")
+    if user.approval_status != ModelApprovalStatus.APPROVED:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Account pending approval"
+        )
         
     return user
 
@@ -80,3 +86,84 @@ async def admin_dashboard(admin: User = Depends(require_role(UserRole.ADMIN))):
 async def user_settings(current_user: User = Depends(get_current_user)):
     """Regular user endpoint (works for both USER and ADMIN)."""
     return {"message": "User settings endpoint", "username": current_user.username}
+
+
+# Admin user management endpoints
+
+@router.get("/admin/pending", response_model=list[UserResponse])
+async def get_pending_users(
+    admin: User = Depends(require_role(UserRole.ADMIN)),
+    db: AsyncSession = Depends(get_db)
+):
+    """Get all users pending approval."""
+    service = UserService(db)
+    users = await service.get_pending_users()
+    return [UserResponse.model_validate(u) for u in users]
+
+
+@router.get("/admin/all", response_model=list[UserResponse])
+async def get_all_users(
+    admin: User = Depends(require_role(UserRole.ADMIN)),
+    db: AsyncSession = Depends(get_db)
+):
+    """Get all users (admin only)."""
+    service = UserService(db)
+    users = await service.get_users()
+    return [UserResponse.model_validate(u) for u in users]
+
+
+@router.post("/admin/{user_id}/approve", response_model=UserResponse)
+async def approve_user(
+    user_id: int,
+    admin: User = Depends(require_role(UserRole.ADMIN)),
+    db: AsyncSession = Depends(get_db)
+):
+    """Approve a pending user."""
+    service = UserService(db)
+    user = await service.update_user(user_id, UserUpdate(approval_status=ApprovalStatus.APPROVED))
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    return UserResponse.model_validate(user)
+
+
+@router.post("/admin/{user_id}/reject", response_model=UserResponse)
+async def reject_user(
+    user_id: int,
+    admin: User = Depends(require_role(UserRole.ADMIN)),
+    db: AsyncSession = Depends(get_db)
+):
+    """Reject a pending user."""
+    service = UserService(db)
+    user = await service.update_user(user_id, UserUpdate(approval_status=ApprovalStatus.REJECTED))
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    return UserResponse.model_validate(user)
+
+
+@router.put("/admin/{user_id}", response_model=UserResponse)
+async def update_user_as_admin(
+    user_id: int,
+    user_in: UserUpdate,
+    admin: User = Depends(require_role(UserRole.ADMIN)),
+    db: AsyncSession = Depends(get_db)
+):
+    """Update any user (admin only)."""
+    service = UserService(db)
+    user = await service.update_user(user_id, user_in)
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    return UserResponse.model_validate(user)
+
+
+@router.delete("/admin/{user_id}")
+async def delete_user_as_admin(
+    user_id: int,
+    admin: User = Depends(require_role(UserRole.ADMIN)),
+    db: AsyncSession = Depends(get_db)
+):
+    """Delete any user (admin only)."""
+    service = UserService(db)
+    success = await service.delete_user(user_id)
+    if not success:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    return {"message": "User deleted successfully"}

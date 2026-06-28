@@ -1,4 +1,6 @@
+import "./globals.css";
 import { AuthProvider } from "./context/AuthContext";
+import { OfflineProvider } from "./offline/OfflineProvider";
 
 export default function RootLayout({
   children,
@@ -7,9 +9,15 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
+      <head>
+        <link rel="manifest" href="/manifest.json" />
+        <meta name="theme-color" content="#1976d2" />
+      </head>
       <body>
         <AuthProvider>
-          {children}
+          <OfflineProvider>
+            {children}
+          </OfflineProvider>
         </AuthProvider>
       </body>
     </html>
