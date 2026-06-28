@@ -4,7 +4,7 @@ from datetime import timedelta
 
 from app.services.users import UserService
 from app.database.connection import get_db
-from app.schemas.users import UserCreate, UserLogin, Token, UserResponse
+from app.schemas.users import UserCreate, UserLogin, Token, UserResponse, ApprovalStatus
 
 from app.core.security import (
     create_access_token,
@@ -84,7 +84,7 @@ async def login(
         )
     
     # Check if user is approved
-    if user.approval_status != "approved":
+    if user.approval_status != ApprovalStatus.APPROVED:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Account pending approval. Please wait for an administrator to approve your registration."

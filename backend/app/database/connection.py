@@ -51,7 +51,8 @@ def _ensure_user_registration_columns(connection):
         if "consent_accepted_at" not in columns:
             connection.execute(text("ALTER TABLE users ADD COLUMN consent_accepted_at TIMESTAMP"))
         if "approval_status" not in columns:
-            connection.execute(text("ALTER TABLE users ADD COLUMN approval_status VARCHAR(20) NOT NULL DEFAULT 'pending'"))
+            connection.execute(text("ALTER TABLE users ADD COLUMN approval_status VARCHAR(20) NOT NULL DEFAULT 'PENDING'"))
+            connection.execute(text("UPDATE users SET approval_status = 'PENDING' WHERE approval_status IS NULL OR approval_status = 'pending'"))
         if "approved_at" not in columns:
             connection.execute(text("ALTER TABLE users ADD COLUMN approved_at TIMESTAMP"))
     except Exception:

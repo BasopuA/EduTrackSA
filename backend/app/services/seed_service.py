@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.users import User, UserRole  # ← Import UserRole
+from app.models.users import User, UserRole, ApprovalStatus  # ← Import UserRole
 from app.core.security import get_password_hash
 from app.core.config import settings
 
@@ -33,7 +33,7 @@ class SeedService:
                 role=UserRole.ADMIN,
                 consent_accepted=True,
                 consent_accepted_at=datetime.now(timezone.utc),
-                approval_status="approved",
+                approval_status=ApprovalStatus.APPROVED,
                 approved_at=datetime.now(timezone.utc)
             )
             
@@ -48,7 +48,7 @@ class SeedService:
                 role=UserRole.TEACHER,
                 consent_accepted=True,
                 consent_accepted_at=datetime.now(timezone.utc),
-                approval_status="approved",
+                approval_status=ApprovalStatus.APPROVED,
                 approved_at=datetime.now(timezone.utc)
             )
             
@@ -63,7 +63,7 @@ class SeedService:
                 role=UserRole.USER,
                 consent_accepted=True,
                 consent_accepted_at=datetime.now(timezone.utc),
-                approval_status="approved",
+                approval_status=ApprovalStatus.APPROVED,
                 approved_at=datetime.now(timezone.utc)
             )
             
