@@ -4,7 +4,7 @@ from sqlalchemy import select
  
 from app.models.users import User, UserRole, ApprovalStatus
 from app.core.security import get_password_hash
-from app.schemas.users import UserCreate, UserUpdate
+from app.schemas.users import UserCreate, UserUpdate, ApprovalStatus
 
 
 class UserService:
